@@ -67,8 +67,7 @@ $option = Helper::options()->plugin('Aidnabo');
                                 "versionName" => "XR版本",
                             );
                             if (class_exists("Widget_XmlRpc")) {
-                                $rm = new ReflectionMethod("Widget_XmlRpc", "NbGetManifestStatic");
-                                if ($rm->isStatic()) {
+                                if (method_exists("Widget_XmlRpc", "NbGetManifestStatic")) {
                                     $aar = Widget_XmlRpc::NbGetManifestStatic();
                                 }
                             }
