@@ -1,99 +1,41 @@
 <?php
 /** @noinspection DuplicatedCode */
 
-class ZipFolder
-{
-    protected $zip;
-    protected $root;
-
-    public function __construct()
-    {
-        $this->zip = new ZipArchive;
-    }
-
-    /**
-     * 解压zip文件到指定文件夹
-     *
-     * @access public
-     * @param string $zipfile 压缩文件路径
-     * @param string $path 压缩包解压到的目标路径
-     * @return bool 解压成功返回 true 否则返回 false
-     */
-    public function unzip($zipfile, $path)
-    {
-        if ($this->zip->open($zipfile) === true) {
-            $file_tmp = @fopen($zipfile, "rb");
-            $bin = fread($file_tmp, 15); //只读15字节 各个不同文件类型，头信息不一样。
-            fclose($file_tmp);
-            /* 只针对zip的压缩包进行处理 */
-            if (true === $this->getTypeList($bin)) {
-                $result = $this->zip->extractTo($path);
-                $this->zip->close();
-                return $result;
-            } else {
-                return false;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 读取压缩包文件与目录列表
-     *
-     * @access public
-     * @param string $zipfile 压缩包文件
-     * @return array 文件与目录列表
-     */
-    public function fileList($zipfile)
-    {
-        $file_dir_list = array();
-        $file_list = array();
-        if ($this->zip->open($zipfile) == true) {
-            for ($i = 0; $i < $this->zip->numFiles; $i++) {
-                $numfiles = $this->zip->getNameIndex($i);
-                if (preg_match('/\/$/i', $numfiles)) {
-                    $file_dir_list[] = $numfiles;
-                } else {
-                    $file_list[] = $numfiles;
-                }
-            }
-        }
-        return array('files' => $file_list, 'dirs' => $file_dir_list);
-    }
-
-    /**
-     * 得到文件头与文件类型映射表
-     *
-     * @param $bin string 文件的二进制前一段字符
-     * @return boolean
-     * @author wengxianhu
-     * @date 2013-08-10
-     */
-    private function getTypeList($bin)
-    {
-        $array = array(
-            array("504B0304", "zip")
-        );
-        foreach ($array as $v) {
-            $blen = strlen(pack("H*", $v[0])); //得到文件头标记字节数
-            $tbin = substr($bin, 0, intval($blen)); ///需要比较文件头长度
-            if (strtolower($v[0]) == strtolower(array_shift(unpack("H*", $tbin)))) {
-                return true;
-            }
-        }
-        return false;
-    }
-}
-
 class Aidnabo_Utils
 {
-    public static function unzip()
+    /**
+     * 解压，迁移，清理临时目录
+     * @param $versionName
+     * @return array
+     */
+    public static function unzip($versionName)
     {
-        $path = __TYPECHO_ROOT_DIR__ . "/var/Widget/XmlRpc.php";
-        $zipFolder = new ZipFolder();
+        $phpZip = new ZipArchive();
+        $filePath = Aidnabo_Plugin::getFilePath();
+        $open = $phpZip->open($filePath, ZipArchive::CHECKCONS);
+        if ($open !== true) {
+            @unlink($filePath);
+            return array(
+                false,
+                "压缩包校验错误"
+            );
+        }
+
+        /** 解压至临时目录 */
+        if (!$phpZip->extractTo(Aidnabo_Plugin::getTempDir())) {
+            $error = error_get_last();
+            return array(
+                false,
+                $error['message']
+            );
+        }
+        $phpZip->close();
+
+        /** 迁移 */
         $temp = Aidnabo_Plugin::getTempDir();
-        $unzip = $zipFolder->unzip($temp . "XmlRpc.zip", $temp);
-        if ($unzip !== true) {
+        $file = $temp . "kraitnabo-xmlrpc-" . $versionName . "/XmlRpc.php";
+        $path = __TYPECHO_ROOT_DIR__ . "/var/Widget/XmlRpc.php";
+        if (!file_exists($file)) {
             return array(
                 false,
                 "解压失败，请点击重试，若又解压失败再点重试"
@@ -102,8 +44,7 @@ class Aidnabo_Utils
         if (file_exists($path)) {
             unlink($path);
         }
-        $list = $zipFolder->fileList($temp . "XmlRpc.zip");
-        rename($temp . $list["dirs"][0] . "XmlRpc.php", $path);
+        rename($file, $path);
         try {
             Aidnabo_Utils::delFile($temp);
             Aidnabo_Utils::delDir($temp);
@@ -119,6 +60,10 @@ class Aidnabo_Utils
         );
     }
 
+    /**
+     * 删除文件
+     * @param $dir
+     */
     public static function delFile($dir)
     {
         $dh = opendir($dir);
@@ -137,6 +82,10 @@ class Aidnabo_Utils
         closedir($dh);
     }
 
+    /**
+     * 删除目录
+     * @param $dir
+     */
     public static function delDir($dir)
     {
         $dh = opendir($dir);
@@ -152,23 +101,58 @@ class Aidnabo_Utils
     }
 
     /**
+     * 判断目录可写
+     *
+     * @access public
+     * @param $dir
+     * @return boolean
+     */
+    public static function isWrite($dir)
+    {
+        $testFile = "_test.txt";
+        $fp = @fopen($dir . "/" . $testFile, "w");
+        if (!$fp) {
+            return false;
+        }
+        fclose($fp);
+        $rs = @unlink($dir . "/" . $testFile);
+        if ($rs) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 下载
      * @param $versionName
      * @return array
      */
     public static function curlDownFile($versionName)
     {
-        $putAble = false;
-        function_exists('ini_get') && ini_get('allow_url_fopen') && ($putAble = 'Socket');
-        false == $putAble && function_exists('curl_version') && ($putAble = 'Curl');
-        if (!$putAble) {
+        $client = Typecho_Http_Client::get();
+        if (!$client) {
             return array(
                 false,
                 "未打开 allow_url_fopen 功能而且不支持 php-curl 扩展"
             );
         }
 
-        $path = Aidnabo_Plugin::getTempDir();
+        if (!class_exists('ZipArchive')) {
+            return array(
+                false,
+                "未安装ZipArchive扩展, 无法更新"
+            );
+        }
+
+        if (!$client->isAvailable()) {
+            return array(
+                false,
+                "Typecho_Http_Client 适配器不可用"
+            );
+        }
+
         // 若指定的目录没有，则创建
+        $path = Aidnabo_Plugin::getTempDir();
         if (!file_exists($path) && !mkdir($path, 0777)) {
             return array(
                 false,
@@ -176,60 +160,39 @@ class Aidnabo_Utils
             );
         }
 
-        if (is_dir($path)) {
-            if ($fp = @fopen("$path/check_writable", 'w')) {
-                @fclose($fp);
-                @unlink("$path/check_writable");
-                $writeable = true;
-            } else {
-                $writeable = false;
-            }
-        } else {
-            if ($fp = @fopen($path, 'a+')) {
-                @fclose($fp);
-                $writeable = true;
-            } else {
-                $writeable = false;
-            }
-        }
-
-        if (!$writeable) {
+        if (!self::isWrite($path)) {
             return array(
                 false,
                 "插件目录不可写"
             );
         }
 
-        $url = "https://api.github.com/repos/kraity/kraitnabo-xmlrpc/zipball/v" . $versionName;
-        $filename = "XmlRpc.zip";
-
-        // 文件路径
-        $filePath = $path . $filename;
-
+        $filePath = Aidnabo_Plugin::getFilePath();
         // 已下载文件，删除
         if (file_exists($filePath)) {
             unlink($filePath);
         }
 
-        // curl
-        $curl = curl_init();
-        curl_setopt($curl, CURLOPT_URL, $url);
-        $fp = fopen($filePath, 'w+');
-        curl_setopt($curl, CURLOPT_MAXREDIRS, 20);
-        curl_setopt($curl, CURLOPT_REFERER, $url);
-        curl_setopt($curl, CURLOPT_HEADER, 0);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($curl, CURLOPT_HTTPHEADER, array('User-Agent: Plugin(typecho)'));
-        curl_setopt($curl, CURLOPT_FILE, $fp);
-        curl_setopt($curl, CURLOPT_TIMEOUT, 30);
-        curl_exec($curl);
-        curl_close($curl);
-        fclose($fp);
-        return array(
-            true,
-            "下载成功"
-        );
+        /** Typecho_Http_Client */
+        $client->setHeader('User-Agent', $_SERVER['HTTP_USER_AGENT'])
+            ->setTimeout(10)
+            ->setMethod(Typecho_Http_Client::METHOD_GET);
+
+        try {
+            /** send */
+            $client->send(
+                Aidnabo_Plugin::getZipUrl($versionName)
+            );
+            $response = $client->getResponseBody();
+            /** put */
+            file_put_contents($filePath, $response);
+            return array(
+                true,
+                "下载成功"
+            );
+        } catch (Typecho_Http_Client_Exception $e) {
+            return array(false, $e);
+        }
     }
 }
 

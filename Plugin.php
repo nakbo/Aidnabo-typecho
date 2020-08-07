@@ -2,30 +2,33 @@
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
 /**
- * 南博助手  - 配套插件
+ * 南博助手  - XmlRpc更新、接口、后台安全
  *
  * @package Aidnabo
  * @author 权那他
- * @version 1.0
+ * @version 1.1
  * @link https://github.com/kraity/typecho-aidnabo
  */
 class Aidnabo_Plugin implements Typecho_Plugin_Interface
 {
-    // 激活插件
+    /**
+     * 激活插件
+     * @return string|void
+     * @throws Typecho_Db_Exception
+     */
     public static function activate()
     {
         Typecho_Plugin::factory('Widget_User')->hashValidate = array("Aidnabo_Action", 'hashValidate');
         Typecho_Plugin::factory('admin/footer.php')->end = array("Aidnabo_Action", 'GoogleAuthLogin');
         Helper::addRoute("XmlRpc_Upgrade", "/aidnabo/xmlrpc/upgrade", "Aidnabo_Action", 'upgrade');
         Helper::addPanel(1, 'Aidnabo/manage-aidnabo.php', '南博助手', '南博助手', 'administrator');
+
         if (!file_exists(Aidnabo_Plugin::getTempDir())) {
             mkdir(Aidnabo_Plugin::getTempDir(), 0777);
         }
 
         $db = Typecho_Db::get();
         $prefix = $db->getPrefix();
-        /** @noinspection SqlResolve */
-        /** @noinspection SqlNoDataSourceInspection */
         $db->query('CREATE TABLE IF NOT EXISTS `' . $prefix . 'users_aid` (
 		  `uid` int(11) unsigned NOT NULL,
 		  `union` varchar(96) DEFAULT NULL,
@@ -39,7 +42,11 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
         return _t('插件已经激活，需先配置插件信息！');
     }
 
-    // 禁用插件
+    /**
+     * 禁用插件
+     * @throws Typecho_Db_Exception
+     * @throws Typecho_Exception
+     */
     public static function deactivate()
     {
         $config = Typecho_Widget::widget('Widget_Options')->plugin('Aidnabo');
@@ -52,15 +59,42 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
 
     }
 
+    /**
+     * 临时目录
+     * @return string
+     */
     public static function getTempDir()
     {
         return dirname(__FILE__) . "/temp/";
     }
 
-    // 插件配置面板
+    /**
+     * 文件路径
+     * @return string
+     */
+    public static function getFilePath()
+    {
+        return Aidnabo_Plugin::getTempDir() . "XmlRpc.zip";
+    }
+
+    /**
+     * 下载链接
+     * @param $versionName
+     * @return string
+     */
+    public static function getZipUrl($versionName)
+    {
+        return "https://codeload.github.com/kraity/kraitnabo-xmlrpc/zip/v" . $versionName;
+    }
+
+    /**
+     * 插件配置面板
+     * @param Typecho_Widget_Helper_Form $form
+     * @throws Typecho_Exception
+     */
     public static function personalConfig(Typecho_Widget_Helper_Form $form)
     {
-        $list = self::getConfigList(array(), false);
+        $list = Aidnabo_Plugin::getConfigList(array(), false);
 
         $union = new Typecho_Widget_Helper_Form_Element_Password(
             'union', null, NULL,
@@ -107,6 +141,13 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
         $form->addInput($element);
     }
 
+    /**
+     * 配置列表
+     * @param array $config
+     * @param bool $isUpdate
+     * @return array|mixed
+     * @throws Typecho_Db_Exception
+     */
     public static function getConfigList($config = array(), $isUpdate = false)
     {
         $uid = Typecho_Cookie::get('__typecho_uid');
@@ -142,6 +183,12 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
         return $list;
     }
 
+    /**
+     * 插件配置帮手
+     * @param $config
+     * @param $isInit
+     * @throws Typecho_Db_Exception
+     */
     public static function personalConfigHandle($config, $isInit)
     {
         self::getConfigList($config, !$isInit);
@@ -156,6 +203,10 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
         }
     }
 
+    /**
+     * GAuthCreateSecret
+     * @return string
+     */
     private static function GAuthCreateSecret()
     {
         require_once 'Utils.php';
@@ -163,6 +214,10 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
         return $Authenticator->createSecret();
     }
 
+    /**
+     * config
+     * @param Typecho_Widget_Helper_Form $form
+     */
     public static function config(Typecho_Widget_Helper_Form $form)
     {
         $secret = new Typecho_Widget_Helper_Form_Element_Text(

@@ -9,6 +9,14 @@ class Aidnabo_Action extends Typecho_Widget implements Widget_Interface_Do
     public $options;
     public $option;
 
+    /**
+     * Aidnabo_Action constructor.
+     * @param $request
+     * @param $response
+     * @param null $params
+     * @throws Typecho_Db_Exception
+     * @throws Typecho_Exception
+     */
     public function __construct($request, $response, $params = null)
     {
         parent::__construct($request, $response, $params);
@@ -24,6 +32,8 @@ class Aidnabo_Action extends Typecho_Widget implements Widget_Interface_Do
      * @param $password
      * @param $pwd
      * @return bool
+     * @throws Typecho_Db_Exception
+     * @throws Typecho_Exception
      * @noinspection PhpUndefinedMethodInspection
      * @noinspection SpellCheckingInspection
      */
@@ -82,6 +92,9 @@ class Aidnabo_Action extends Typecho_Widget implements Widget_Interface_Do
         return $hashValidate;
     }
 
+    /**
+     * GoogleAuthLogin
+     */
     public static function GoogleAuthLogin()
     {
         if (strpos(Typecho_Request::getInstance()->getBaseUrl(), 'login.php') !== false) {
@@ -95,6 +108,9 @@ class Aidnabo_Action extends Typecho_Widget implements Widget_Interface_Do
         }
     }
 
+    /**
+     * XmlRpc upgrade
+     */
     public function upgrade()
     {
         if (empty($this->request->versionName)) {
@@ -130,7 +146,7 @@ class Aidnabo_Action extends Typecho_Widget implements Widget_Interface_Do
         try {
             $aar = Aidnabo_Utils::curlDownFile($vn);
             if ($aar[0]) {
-                $aar = Aidnabo_Utils::unzip();
+                $aar = Aidnabo_Utils::unzip($vn);
             }
             $this->throwJson($aar);
         } catch (Exception $e) {
@@ -141,6 +157,10 @@ class Aidnabo_Action extends Typecho_Widget implements Widget_Interface_Do
         }
     }
 
+    /**
+     * throwJson
+     * @param $message
+     */
     public function throwJson($message)
     {
         $this->response->setContentType('application/json');
