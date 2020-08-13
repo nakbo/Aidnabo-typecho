@@ -31,6 +31,7 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
 
         $db = Typecho_Db::get();
         $prefix = $db->getPrefix();
+
         $db->query('CREATE TABLE IF NOT EXISTS `' . $prefix . 'users_aid` (
 		  `uid` int(11) unsigned NOT NULL,
 		  `union` varchar(96) DEFAULT NULL,
@@ -43,10 +44,14 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
 		  PRIMARY KEY (`uid`)
 		) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;');
 
-        /** 表更新*/
-        if (!array_key_exists('pushKey', $db->fetchRow($db->select()->from('table.users_aid')))) {
-            $db->query('ALTER TABLE `' . $prefix . 'users_aid` ADD `pushKey` varchar(32) DEFAULT NULL;');
-            $db->query('ALTER TABLE `' . $prefix . 'users_aid` ADD `pushSafe` int(1) DEFAULT 0;');
+        try {
+            /** 表更新*/
+            if (!array_key_exists('pushKey', $db->fetchRow($db->select()->from('table.users_aid')))) {
+                $db->query('ALTER TABLE `' . $prefix . 'users_aid` ADD `pushKey` varchar(32) DEFAULT NULL;');
+                $db->query('ALTER TABLE `' . $prefix . 'users_aid` ADD `pushSafe` int(1) DEFAULT 0;');
+            }
+        } catch (Exception $e) {
+
         }
 
         return _t('插件已经激活，需先配置插件信息！');
