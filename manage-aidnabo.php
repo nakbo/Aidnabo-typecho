@@ -133,6 +133,22 @@ $option = Helper::options()->plugin('Aidnabo');
                                 </td>
                             </tr>
                             <tr>
+                                <td>[当前账户] 推送密匙</td>
+                                <td>
+                                    <span class="hide">点击显示</span>
+                                    <span class="show"><?php echo $personalOption['pushKey']; ?></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>[当前账户] 推送开关</td>
+                                <td>
+                                    <span class="hide"><?php echo $personalOption['pushSafe'] == 0 ? "已关闭" : "已打开"; ?></span>
+                                    <span class="show"><a
+                                                href="<?php $options->adminUrl("profile.php#personal-Aidnabo"); ?>"
+                                                target="_blank">点击前往设置</a></span>
+                                </td>
+                            </tr>
+                            <tr>
                                 <td>RPC密匙</td>
                                 <td>
                                     <span class="hide">点击显示</span>
@@ -143,6 +159,15 @@ $option = Helper::options()->plugin('Aidnabo');
                                 <td>RPC更新开关</td>
                                 <td>
                                     <span class="hide"><?php echo $option->rpcUpdateSafe == 0 ? "已关闭" : "已打开"; ?></span>
+                                    <span class="show"><a
+                                                href="<?php $options->adminUrl("options-plugin.php?config=Aidnabo"); ?>"
+                                                target="_blank">点击前往设置</a></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>评论通知总开关</td>
+                                <td>
+                                    <span class="hide"><?php echo $option->commentPushAble == 0 ? "已关闭" : "已打开"; ?></span>
                                     <span class="show"><a
                                                 href="<?php $options->adminUrl("options-plugin.php?config=Aidnabo"); ?>"
                                                 target="_blank">点击前往设置</a></span>

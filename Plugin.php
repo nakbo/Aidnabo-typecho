@@ -6,7 +6,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
  *
  * @package Aidnabo
  * @author 权那他
- * @version 1.1
+ * @version 1.2
  * @link https://github.com/kraity/typecho-aidnabo
  */
 class Aidnabo_Plugin implements Typecho_Plugin_Interface
@@ -20,6 +20,8 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
     {
         Typecho_Plugin::factory('Widget_User')->hashValidate = array("Aidnabo_Action", 'hashValidate');
         Typecho_Plugin::factory('admin/footer.php')->end = array("Aidnabo_Action", 'GoogleAuthLogin');
+        Typecho_Plugin::factory('Widget_Feedback')->finishComment = array("Aidnabo_Plugin", "finishComment");
+
         Helper::addRoute("XmlRpc_Upgrade", "/aidnabo/xmlrpc/upgrade", "Aidnabo_Action", 'upgrade');
         Helper::addPanel(1, 'Aidnabo/manage-aidnabo.php', '南博助手', '南博助手', 'administrator');
 
@@ -33,11 +35,19 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
 		  `uid` int(11) unsigned NOT NULL,
 		  `union` varchar(96) DEFAULT NULL,
 		  `unionSafe` int(1) DEFAULT 0,
+		  `pushKey` varchar(32) DEFAULT NULL,
+		  `pushSafe` int(1) DEFAULT 0,
 		  `gauthKey` varchar(128) DEFAULT NULL,
 		  `gauthSafe` int(1) DEFAULT 0,
 		  `rpcSafe` int(1) DEFAULT 0,
 		  PRIMARY KEY (`uid`)
 		) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;');
+
+        /** 表更新*/
+        if (!array_key_exists('pushKey', $db->fetchRow($db->select()->from('table.users_aid')))) {
+            $db->query('ALTER TABLE `' . $prefix . 'users_aid` ADD `pushKey` varchar(32) DEFAULT NULL;');
+            $db->query('ALTER TABLE `' . $prefix . 'users_aid` ADD `pushSafe` int(1) DEFAULT 0;');
+        }
 
         return _t('插件已经激活，需先配置插件信息！');
     }
@@ -98,15 +108,27 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
 
         $union = new Typecho_Widget_Helper_Form_Element_Password(
             'union', null, NULL,
-            'UNION', 'UNION，当你在南博用QQ授权登录后，你会看见自己的union，它在QQ平台是唯一的，你可以在南博里个人信息界面里查看');
+            'Union', 'Union，当你在南博用QQ授权登录后，你会看见自己的union，它在QQ平台是唯一的，你可以在南博里个人信息界面里查看');
         $form->addInput($union);
 
         $enable = new Typecho_Widget_Helper_Form_Element_Radio(
             'unionSafe', array(
             '0' => '关闭',
             '1' => '打开',
-        ), '0', 'Union匹配登录开关', '打开后同时填写上面的union, 南博登陆博客时 强制必须 经过QQ授权登录且与上面的Union相符合后，再验证密码是否正确。 可以这样理解，先验证判断是否是上面绑定的Union，然后再验证判断密码');
+        ), '0', '匹配登录开关', '打开后同时填写上面的 union, 南博登陆博客时 强制必须 经过QQ授权登录且与上面的Union相符合后，再验证密码是否正确。 可以这样理解，先验证判断是否是上面绑定的Union，然后再验证判断密码');
         $form->addInput($enable);
+
+        $pushKey = new Typecho_Widget_Helper_Form_Element_Text(
+            'pushKey', null, NULL,
+            '推送密匙', '推送密匙，32位小写字符串，南博会员功能。用于消息推送到南博，评论回复通知、自定义消息推送。');
+        $form->addInput($pushKey);
+
+        $pushSafe = new Typecho_Widget_Helper_Form_Element_Radio(
+            'pushSafe', array(
+            '0' => '关闭',
+            '1' => '打开',
+        ), '0', '推送开关', '打开后同时填写上面的推送密匙，用于消息推送到南博，一般延迟在5分钟，请勿频繁推送，否者将无法再使用');
+        $form->addInput($pushSafe);
 
         $enable = new Typecho_Widget_Helper_Form_Element_Radio(
             'rpcSafe', array(
@@ -120,13 +142,15 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
             'GoogleAuth密匙', '请保管好,如果要重置则把这一栏清空再保存就可以重置。在谷歌Authenticator添加账号。其中账号名是随便填写即只是个记号，而密匙就是这个密匙，或者扫码添加，<a href="javascript:;" id="ScanOtp" target="_blank">点击扫码添加</a>');
         $form->addInput($secret);
 
-        $qr = 'otpauth://totp/' . urlencode('[' . $_SERVER['HTTP_HOST'] . '] : ' . Typecho_Widget::widget('Widget_User')->mail) . '?secret=' . $list['gauthKey'];
+        $qr = 'otpauth://totp/' . urlencode(Typecho_Widget::widget('Widget_User')->mail . ' (' . $_SERVER['HTTP_HOST'] . ')') . '?secret=' . $list['gauthKey'];
         $html = '
 <script>
     window.onload = function () {
         document.getElementsByName("union")[0].value = "' . $list['union'] . '";
         document.getElementsByName("gauthKey")[0].value = "' . $list['gauthKey'] . '";
+        document.getElementsByName("pushKey")[0].value = "' . $list['pushKey'] . '";
         document.getElementsByName("unionSafe")[' . $list['unionSafe'] . '].checked = true;
+        document.getElementsByName("pushSafe")[' . $list['pushSafe'] . '].checked = true;
         document.getElementsByName("gauthSafe")[' . $list['gauthSafe'] . '].checked = true;
         document.getElementsByName("rpcSafe")[' . $list['rpcSafe'] . '].checked = true;
         document.getElementById("ScanOtp").href  = "https://qun.qq.com/qrcode/index?data=' . $qr . '";
@@ -161,6 +185,8 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
                 $list = array(
                     'union' => $config['union'],
                     'unionSafe' => $config['unionSafe'],
+                    'pushKey' => $config['pushKey'],
+                    'pushSafe' => $config['pushSafe'],
                     'gauthKey' => $list['gauthKey'],
                     'gauthSafe' => $config['gauthSafe'],
                     'rpcSafe' => $config['rpcSafe']
@@ -173,6 +199,8 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
                 'uid' => $uid,
                 'union' => '',
                 'unionSafe' => 0,
+                'pushKey' => '',
+                'pushSafe' => 0,
                 'gauthKey' => $gauthKey,
                 'gauthSafe' => 0,
                 'rpcSafe' => 0
@@ -196,6 +224,8 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
             Helper::configPlugin("Aidnabo", array(
                 'union' => '',
                 'unionSafe' => 0,
+                'pushKey' => '',
+                'pushSafe' => 0,
                 'gauthKey' => '',
                 'gauthSafe' => 0,
                 'rpcSafe' => 0
@@ -232,11 +262,121 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
         ), '1', 'RPC更新开关', '请选择是否启用XmlRpc自动更新能力,自动从Github仓库拉取。关闭后就在南博里就不能快速更新XmlRpc了。建议要更新时候就开启，更新过后关闭');
         $form->addInput($enable);
 
+        $enable = new Typecho_Widget_Helper_Form_Element_Radio(
+            'commentPushAble', array(
+            '0' => '关闭',
+            '1' => '打开',
+        ), '0', '评论通知总开关', '请选择是否启用评论通知，注意启用之前，需要填写推送密匙，推送开关。均开启后，当别人评论时，博客调用推送接口，推送到南博App，一般延迟在5分钟');
+        $form->addInput($enable);
+
+        $enable = new Typecho_Widget_Helper_Form_Element_Radio(
+            'setThemeAble', array(
+            '0' => '禁止',
+            '1' => '允许',
+        ), '0', '主题设置能力', '开启后，在南博可以切换主题和配置主题');
+        $form->addInput($enable);
+
+        $enable = new Typecho_Widget_Helper_Form_Element_Radio(
+            'setPluginAble', array(
+            '0' => '禁止',
+            '1' => '允许',
+        ), '0', '插件设置能力', '开启后，在南博启用和禁用插件以及配置插件');
+        $form->addInput($enable);
+
+        $enable = new Typecho_Widget_Helper_Form_Element_Radio(
+            'setOptionAble', array(
+            '0' => '禁止',
+            '1' => '允许',
+        ), '0', '基本设置能力', '开启后，在南博进行基本设置、评论设置、阅读设置、永久链接设置、以及个人资料设置');
+        $form->addInput($enable);
+
         $isDrop = new Typecho_Widget_Helper_Form_Element_Radio(
             'isDrop', array(
             '0' => '不删除',
             '1' => '删除',
-        ), '0', '删数据表', '请选择是否在禁用插件时，删除日志数据表，这张表是对应每个账户的安全设置，此表是本插件创建的，为了增强XmlRpc接口安全性和后台登陆安全性。如果选择不删除，那么禁用后再次启用还是之前的安全数据(除RPC密匙外)就不用重新安全设置');
+        ), '0', '删数据表', '请选择是否在禁用插件时，删除日志数据表，这张表是对应每个账户的安全设置，此表是本插件创建的，为了增强XmlRpc接口安全性和后台登陆安全性。如果选择不删除，那么禁用后再次启用还是之前的安全数据(除本页面的配置外)就不用重新安全设置');
         $form->addInput($isDrop);
+    }
+
+    /**
+     * @param array $request
+     * @return bool
+     * @throws Typecho_Db_Exception
+     */
+    public static function sendMessage($request)
+    {
+        $db = Typecho_Db::get();
+        $list = $db->fetchRow($db->select()
+            ->from('table.users_aid')
+            ->where("uid = ?", $request["uid"]));
+
+        if (count($list) > 0) {
+            if ($list['pushSafe'] == 1) {
+                $client = Typecho_Http_Client::get();
+                if (false == $client) {
+                    return false;
+                }
+
+                if (empty($list['union'])) {
+                    return false;
+                }
+
+                if (empty($list['pushKey'])) {
+                    return false;
+                }
+
+                if (empty($request['title'])) {
+                    return false;
+                }
+
+                if (empty($request['text'])) {
+                    return false;
+                }
+
+                if (!preg_match("/^[a-f0-9]{32}$/", $list['pushKey'])) {
+                    return false;
+                }
+
+                try {
+                    $client->setHeader('User-Agent', $_SERVER['HTTP_USER_AGENT'])
+                        ->setTimeout(5)
+                        ->setData(array(
+                            'union' => $list['union'],
+                            'secret' => $list['pushKey'],
+                            'version' => 1,
+                            'title' => $request['title'],
+                            'text' => $request['text']
+                        ))->send("https://api.krait.cn/nabo/push");
+
+                    $response = $client->getResponseBody();
+                    $body = json_decode($response);
+                    return $body->state;
+                } catch (Exception $e) {
+                    return false;
+                }
+            }
+            return false;
+        }
+        return false;
+    }
+
+    /**
+     * 新评论通知，目前，通知博主自己
+     * @param Widget_Comments_Edit|Widget_Feedback $comment
+     * @throws Typecho_Db_Exception
+     * @throws Typecho_Plugin_Exception
+     */
+    public static function finishComment($comment)
+    {
+        if (Helper::options()->plugin("Aidnabo")->commentPushAble == 1) {
+            /** 作者自己评论就不通知 */
+            if ($comment->authorId != $comment->ownerId) {
+                Aidnabo_Plugin::sendMessage(array(
+                    "uid" => $comment->ownerId,
+                    "title" => "你有一条新" . ($comment->status == 'approved' ? "" : "待审核的") . "评论",
+                    "text" => $comment->author . "在" . date("H点i分", $comment->created) . "给你留了言"
+                ));
+            }
+        }
     }
 }
