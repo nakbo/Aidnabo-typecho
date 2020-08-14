@@ -32,7 +32,20 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
         $db = Typecho_Db::get();
         $prefix = $db->getPrefix();
 
-        $db->query('CREATE TABLE IF NOT EXISTS `' . $prefix . 'users_aid` (
+        if ($db->fetchRow($db->query("SHOW TABLES LIKE '{$prefix}users_aid';"))) {
+            /* 表更新 */
+            $rows = $db->fetchRow($db->select()->from('table.users_aid'));
+            $alter = array(
+                "pushKey" => 'ALTER TABLE `' . $prefix . 'users_aid` ADD `pushKey` varchar(32) DEFAULT NULL;',
+                "pushSafe" => 'ALTER TABLE `' . $prefix . 'users_aid` ADD `pushSafe` int(1) DEFAULT 0;'
+            );
+            foreach ($alter as $column => $query) {
+                if (!array_key_exists($column, $rows)) {
+                    $db->query($query);
+                }
+            }
+        } else {
+            $db->query('CREATE TABLE IF NOT EXISTS `' . $prefix . 'users_aid` (
 		  `uid` int(11) unsigned NOT NULL,
 		  `union` varchar(96) DEFAULT NULL,
 		  `unionSafe` int(1) DEFAULT 0,
@@ -43,14 +56,6 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
 		  `rpcSafe` int(1) DEFAULT 0,
 		  PRIMARY KEY (`uid`)
 		) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;');
-
-        try {
-            /** 表更新*/
-            if (!array_key_exists('pushKey', $db->fetchRow($db->select()->from('table.users_aid')))) {
-                $db->query('ALTER TABLE `' . $prefix . 'users_aid` ADD `pushKey` varchar(32) DEFAULT NULL;');
-                $db->query('ALTER TABLE `' . $prefix . 'users_aid` ADD `pushSafe` int(1) DEFAULT 0;');
-            }
-        } catch (Exception $e) {
 
         }
 
