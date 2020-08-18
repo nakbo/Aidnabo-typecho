@@ -18,16 +18,6 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
      */
     public static function activate()
     {
-        Typecho_Plugin::factory('Widget_User')->hashValidate = array("Aidnabo_Action", 'hashValidate');
-        Typecho_Plugin::factory('admin/footer.php')->end = array("Aidnabo_Action", 'GoogleAuthLogin');
-        Typecho_Plugin::factory('Widget_Feedback')->finishComment = array("Aidnabo_Plugin", "finishComment");
-
-        Helper::addRoute("XmlRpc_Upgrade", "/aidnabo/xmlrpc/upgrade", "Aidnabo_Action", 'upgrade');
-        Helper::addPanel(1, 'Aidnabo/manage-aidnabo.php', '南博助手', '南博助手', 'administrator');
-
-        if (!file_exists(Aidnabo_Plugin::getTempDir())) {
-            mkdir(Aidnabo_Plugin::getTempDir(), 0777);
-        }
 
         $db = Typecho_Db::get();
         $prefix = $db->getPrefix();
@@ -58,6 +48,17 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
 		) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;');
 
         }
+
+        if (!file_exists(Aidnabo_Plugin::getTempDir())) {
+            mkdir(Aidnabo_Plugin::getTempDir(), 0777);
+        }
+
+        Typecho_Plugin::factory('Widget_User')->hashValidate = array("Aidnabo_Action", 'hashValidate');
+        Typecho_Plugin::factory('admin/footer.php')->end = array("Aidnabo_Action", 'GoogleAuthLogin');
+        Typecho_Plugin::factory('Widget_Feedback')->finishComment = array("Aidnabo_Plugin", "finishComment");
+
+        Helper::addRoute("XmlRpc_Upgrade", "/aidnabo/xmlrpc/upgrade", "Aidnabo_Action", 'upgrade');
+        Helper::addPanel(1, 'Aidnabo/manage-aidnabo.php', '南博助手', '南博助手', 'administrator');
 
         return _t('插件已经激活，需先配置插件信息！');
     }
