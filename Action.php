@@ -69,7 +69,8 @@ class Aidnabo_Action extends Typecho_Widget implements Widget_Interface_Do
                 $hashValidate = hash_equals($password, md5($pwd));
             }
         } else {
-            if ($user['gauthSafe'] == 1) {
+            /** 判断是否启用了二步验证码 */
+            if ($user['gauthSafe'] == 1 && Aidnabo_Action::gauthEnable()) {
                 $oneCode = intval($action->request->get('otp'));
                 if ($oneCode > 0) {
                     $Authenticator = new GoogleAuthenticator();
@@ -93,18 +94,36 @@ class Aidnabo_Action extends Typecho_Widget implements Widget_Interface_Do
     }
 
     /**
+     * 二步验证码，总开关
+     * 如果存在 gauthSafe.txt 文件，将不生效 (用于紧急登陆后台)
+     *
+     * @return bool
+     */
+    public static function gauthEnable()
+    {
+        return !file_exists(__DIR__ . "/gauthSafe.txt");
+    }
+
+    /**
      * GoogleAuthLogin
      */
     public static function GoogleAuthLogin()
     {
-        if (strpos(Typecho_Request::getInstance()->getBaseUrl(), 'login.php') !== false) {
-            ?>
-            <script>
-                $(document).ready(function () {
-                    $("form p:nth-of-type(2)").append('<p><label for="authCode" class="sr-only">两步验证码</label><input type="text" id="otp" name="otp" value="" placeholder="两步验证码" class="text-l w-100" autofocus=""></p>');
-                });
-            </script>
+        if (strpos(Typecho_Request::getInstance()->getBaseUrl(), 'login.php') !== false && Aidnabo_Action::gauthEnable()) {
+            $db = Typecho_Db::get();
+            $num = $db->fetchRow(
+                $db->select('count(1) AS count')->where('gauthSafe = ?', '1')->from('table.users_aid')
+            )['count'];
+            /** 如果存在账户开启了二步验证，则输出脚本 **/
+            if ($num > 0):
+                ?>
+                <script>
+                    $(document).ready(function () {
+                        $("form p:nth-of-type(2)").append('<p><label for="authCode" class="sr-only">两步验证码</label><input type="text" id="otp" name="otp" value="" placeholder="两步验证码" class="text-l w-100" autofocus=""></p>');
+                    });
+                </script>
             <?php
+            endif;
         }
     }
 
