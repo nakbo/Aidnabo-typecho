@@ -15,12 +15,20 @@ class Aidnabo_Plugin implements Typecho_Plugin_Interface
      * 激活插件
      * @return string|void
      * @throws Typecho_Db_Exception
+     * @throws Typecho_Plugin_Exception
      */
     public static function activate()
     {
 
         $db = Typecho_Db::get();
         $prefix = $db->getPrefix();
+        //当前数据库类型
+        $databaseType = explode("_", strtolower($db->getAdapterName()))[1];
+        //当前插件支持数据库类型
+        $supportDatabaseType = ["mysql"];
+        if (!in_array($databaseType, $supportDatabaseType)) {
+            throw new Typecho_Plugin_Exception("暂不支持当前环境的数据库");
+        }
 
         if ($db->fetchRow($db->query("SHOW TABLES LIKE '{$prefix}users_aid';"))) {
             /* 表更新 */
