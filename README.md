@@ -33,5 +33,5 @@ XmlRpc更新功能，下载使用 `Typecho_Http_Client` ，解压使用 `ZipArch
  - 安装插件
 
 * 该插件适合`南博v2.2及其以后的版本`，其插件可以`快速更新XmlRpc文件`、`XmlRpc接口的安全`以及`后台登录的两步验证码`(默认关闭，若需使用则可开启)
-* 南博助手 [点击前往下载插件](https://github.com/kraity/typecho-aidnabo/releases) ，然后点击`Source code`进行下载，上传插件，插件名一定要为`Aidnabo`，第一个A是`大写`。若需详细教程 - [点击查看详细教程](https://krait.cn/major/2038.html)
+* 南博助手 [点击前往下载插件](https://github.com/kraity/typecho-aidnabo/releases) ，然后点击`Source code`进行下载，上传插件，插件名一定要为`Aidnabo`，第一个A是`大写`。若需详细教程 - [点击查看详细教程](https://docs.nabo.krait.cn/#/start)
 * 然后你就可以`跳过`了`步骤1`和`步骤2`
